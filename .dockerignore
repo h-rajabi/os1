@@ -1,0 +1,9 @@
+.dockerignore
+Dockerfile
+docker-compose.yml
+build-and-run.sh
+.git
+.gitignore
+README.md
+*.tmp
+*.log

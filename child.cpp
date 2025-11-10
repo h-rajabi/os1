@@ -8,6 +8,7 @@
 #include <random>
 #include <time.h>
 #include <chrono>
+#include <cstdint>
 
 using namespace std;
 
@@ -44,37 +45,55 @@ void findBestCables(FileOpenResult* Cables, FileOpenResult* Result, int64_t time
     int64_t sum = 0 ;
     
     bool r;
-    while (true) {
+    bool loop = true;
+    while (loop) {
 		auto now = chrono::steady_clock::now();
 		auto spent = chrono::duration_cast<chrono::seconds>(now - start);
 		if (spent.count() >= timee) {
 			break;
 		}
         sum=0;
-        for (size_t i = 0; i < Cables->totalLine; i++)
-        {
-            if (sum >= Cables->finalNumber )
-            {
-                if ( min > sum )
-                {
-                    min=sum;
-                    TempResult = TempSum;
-                    break;
-                }
-                break;
-            }
+        TempSum.clear();
+        for (size_t i = 0; i < Cables->totalLine -1; i++)
+        {   
             r=ran();
             if (r)
             {
                 TempSum.push_back(Cables->numbers[i]);
                 sum += Cables->numbers[i];
+            
+                if (sum > Cables->finalNumber )
+                {
+                    if(min == -1){
+                        min=sum;
+                        TempResult = TempSum;
+                        // cout << "Found first solution, size:" << TempResult.size() << " sum:" << sum << endl;
+                        break;
+                    }
+                    else if ( min > sum )
+                    {
+                        min=sum;
+                        TempResult = TempSum;
+                        // cout << "Found better solution, size:" << TempResult.size() << " sum:" << sum << endl;
+                        break;
+                    }
+                    else break;
+                }
+                else if (sum == Cables->finalNumber ){
+                    min=sum;
+                    TempResult = TempSum;
+                    // cout << "Found best solution, size:" << TempResult.size() << " sum:" << sum << endl;
+                    loop=false;
+                    break;
+                }
             }
         }
     }
 
-    Result->finalNumber=min;
+
+    Result->totalLine=Cables->totalLine;
+    Result->finalNumber = min;
     Result->numbers=TempResult;
-    Result->totalLine=TempResult.size();
 
 }
 
@@ -83,16 +102,17 @@ int main() {
     int Cores =CoresNumber();
     int pId = GetCurrentProcessId();
     int64_t timee;
-    SharedMemory* FileMemory = new SharedMemory("FileMemory",Cores);
-
+    SharedMemory* FileMemory = new SharedMemory("FileMemory",Cores,0);
+    
     timee = FileMemory->readFileFromRAM();
-
+    
     FileOpenResult* Cables = FileMemory->GetResult();
-    FileOpenResult* Result;
-
+    FileOpenResult* Result = new FileOpenResult;
+    
+    cout<<"PID :"<<pId<<" start his job\n";
     findBestCables(Cables,Result,timee);
 
-    SharedMemory* MapMemory = new SharedMemory("MapMemory",Cores);
+    SharedMemory* MapMemory = new SharedMemory("MapMemory",Cores,1);
 
     int index = MapMemory->readMapFromRAM(pId);
     if (index == -1 )
@@ -100,7 +120,7 @@ int main() {
         cout<<"Error can`t find pID : "<<pId<<" in mapMemory\n";
         return 0;
     }
-    SharedMemory* ResultMemory = new SharedMemory("ResultMemory",Cores);
+    SharedMemory* ResultMemory = new SharedMemory("ResultMemory",Cores,2);
     cout<<"PID :"<<pId<<" finsh his job\n";
     ResultMemory->setResult(Result,index);
 

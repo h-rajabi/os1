@@ -3,15 +3,16 @@
 #include <windows.h>
 #include <fstream>
 #include <sstream>
+#include <cstdint>
 
 using namespace std;
 
 
-bool readAndProcessFile(FileOpenResult& result) {
-    ifstream file(result.fileName);
+bool readAndProcessFile(FileOpenResult* result) {
+    ifstream file(result->fileName);
     
     if (!file.is_open()) {
-        cout << "Error: Cannot open file " << result.fileName << endl;
+        cout << "Error: Cannot open file " << result->fileName << endl;
         return false;
     }
     
@@ -36,31 +37,31 @@ bool readAndProcessFile(FileOpenResult& result) {
         
         if (ss >> number) {
             if (firstLine) {
-                result.finalNumber = number;
+                result->finalNumber = number;
                 firstLine = false;
             } else {
-                result.numbers.push_back(number);
+                result->numbers.push_back(number);
             }
         } else {
             cout << "Warning: Line " << totalLines << " is not a valid number: " << line << endl;
         }
     }
-    result.totalLine = totalLines;
+    result->totalLine = totalLines;
     file.close();
     return true;
 }
 
-void displayResults(FileOpenResult& result) {
+void displayResults(FileOpenResult* result) {
     cout << "=== File Processing Results ===" << endl;
-    cout << "File name: " << result.fileName << endl;
-    cout << "Final number (first line): " << result.finalNumber << endl;
-    cout << "Total lines in file: " << result.totalLine << endl;
-    cout << "Random numbers count: " << result.numbers.size() << endl;
+    cout << "File name: " << result->fileName << endl;
+    cout << "Final number (first line): " << result->finalNumber << endl;
+    cout << "Total lines in file: " << result->totalLine << endl;
+    cout << "Random numbers count: " << result->numbers.size() << endl;
     cout << "Random numbers: ";
     
-    for (size_t i = 0; i < result.numbers.size(); ++i) {
-        cout << result.numbers[i];
-        if (i < result.numbers.size() - 1) {
+    for (size_t i = 0; i < result->numbers.size(); ++i) {
+        cout << result->numbers[i];
+        if (i < result->numbers.size() - 1) {
             cout << ", ";
         }
     }
@@ -81,10 +82,8 @@ SharedMemory::SharedMemory(const string memoryName, FileOpenResult* res, int pro
     
     size_t memorySize;
     
-    if (size == 0)
-    {
-        memorySize=getMemorySize(0);
-    }
+    memorySize=getMemorySize(size);
+    
     HMapFile = CreateFileMapping(
         INVALID_HANDLE_VALUE,
         NULL,
@@ -108,22 +107,24 @@ SharedMemory::SharedMemory(const string memoryName, FileOpenResult* res, int pro
     );
     
     if (PData == NULL) {
-        cerr << "MapViewOfFile failed: " << GetLastError() << endl;
+        cerr << "MapViewOfFile failed in parrent: " << GetLastError() << endl;
         CloseHandle(HMapFile);
         HMapFile = NULL;
+        exit(0);
     } else {
         cout << "Shared memory created successfully: " << Name << endl;
     }
 }
 
-SharedMemory::SharedMemory(const string memoryName, int proc) :
-    Name(memoryName), HMapFile(NULL), Result(NULL), Process(proc), PData(NULL) {
-        HMapFile = OpenFileMapping(FILE_MAP_READ, false, Name.c_str());
-        if (HMapFile == NULL) {
-            cerr << "OpenFileMapping failed: " << GetLastError() << endl;
-            return;
-        }
+SharedMemory::SharedMemory(const string memoryName, int proc,int size) :
+    Name(memoryName), HMapFile(NULL), Process(proc) {
+        Result= new FileOpenResult;
         
+        HMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, false, Name.c_str());
+        if (HMapFile == NULL) {
+            cerr << "OpenFileMapping failed: " << Name << endl;
+            exit(0);
+        }
         PData = MapViewOfFile(
             HMapFile,
             FILE_MAP_ALL_ACCESS,
@@ -133,9 +134,10 @@ SharedMemory::SharedMemory(const string memoryName, int proc) :
         );
         
         if (PData == NULL) {
-            cerr << "MapViewOfFile failed: " << GetLastError() << endl;
+            cerr << "MapViewOfFile failed: " << Name << endl;
             CloseHandle(HMapFile);
             HMapFile = NULL;
+            exit(0);
         } else {
             cout << "Shared memory opened successfully: " << Name << endl;
         }
@@ -173,18 +175,20 @@ void SharedMemory::writeFileToRAM(int64_t time) {
         cout << "Cannot write - shared memory not initialized" << endl;
         return;
     }
-    
     int64_t* Buf = as<int64_t>();
-    
     Buf[0] = time;
     Buf[1] = Result->totalLine;
     Buf[2] = Result->finalNumber;
     
-    for (size_t i = 3; i < Result->totalLine; i++) {
-        Buf[i] = Result->numbers[i];
+    cout<<"test3\n";
+    for (size_t i = 0; i < Result->numbers.size(); i++) {
+        Buf[i+3] = Result->numbers[i];
+        cout<<"number: "<<Result->numbers[i]<<endl;
     }
+
     
     cout << "Data written to shared memory successfully" << endl;
+
     cout << "Total elements written: " << (Result->numbers.size() + 3) << endl;
 }
 //child
@@ -198,10 +202,11 @@ int64_t SharedMemory::readFileFromRAM() {
     int64_t time = Buf[0];
     Result->totalLine = Buf[1];
     Result->finalNumber = Buf[2];
-    
-    for (int i = 3; i <= ( Result->totalLine ); i++) {
+    cout<<"time :"<<time<<endl;
+    for (int i = 3; i <= ( Result->totalLine +2 ); i++) {
         Result->numbers.push_back(Buf[i]);
     }
+
     return time;
 }
 //parent
@@ -218,7 +223,7 @@ void SharedMemory::writeMapToRAM(const vector<int> map){
     {
         Buf[i] = map[i];
     }
-    
+    cout<<"write to mapMemory sucess \n";
 }
 //child
 int SharedMemory::readMapFromRAM(int pid){
@@ -252,9 +257,9 @@ void SharedMemory::writeResultToRAM(int index){
 
     Buf[j] = Result->finalNumber;
     int h =0;
-    for (size_t i = j + 1; i < (j + Result->totalLine); i++)
+    for (size_t i = j + 1; i < (j + Result->totalLine) -1; i++)
     {
-        if (h > Result->numbers.size())
+        if (h >= Result->numbers.size())
         {
             Buf[i] = 0;
         }else
@@ -263,7 +268,6 @@ void SharedMemory::writeResultToRAM(int index){
             h++;    
         }
     }
-    
 }
 //parent
 void SharedMemory::readResultFromRAM(){
@@ -277,8 +281,9 @@ void SharedMemory::readResultFromRAM(){
     int64_t min = Buf[0];
     int jm = 0;
     int j=0;
-    for (size_t i = Result->totalLine ; i < Process*Result->totalLine-1 ; i += Result->totalLine)
+    for (size_t i = Result->totalLine ; i < Process*Result->totalLine ; i += Result->totalLine)
     {
+        // cout<<"index :"<<i<<endl;
         j++;
         if (Buf[i] < min)
         {
@@ -286,10 +291,11 @@ void SharedMemory::readResultFromRAM(){
             jm=j;
         }
     }
+    // cout<<"find best in index :"<<jm<<endl;
 
     vector<int64_t> final;
     int64_t fnumber;
-    int64_t index = j * Result->totalLine;
+    int64_t index = jm * Result->totalLine;
     fnumber=Buf[index];
     for (size_t i = index+1 ; i < ( index + Result->totalLine); i++)
     {
@@ -302,6 +308,21 @@ void SharedMemory::readResultFromRAM(){
     displayFinalResult(final, fnumber);
 }
 
+void SharedMemory::readAllResultFromRAM(){
+    if (!PData) {
+        cerr << "Cannot read - shared memory not initialized" << endl;
+        return;
+    }
+
+    int64_t* Buf = as<int64_t>();
+    int x = Process*Result->totalLine;
+    for (size_t i = 0; i < x ; i++)
+    {
+        cout<<"index["<<i<<"] is :"<<Buf[i]<<endl;
+    }
+    
+}
+
 void SharedMemory::displaySharedData() {
     cout << "=== Shared Memory Info ===" << endl;
     cout << "Name: " << Name << endl;
@@ -309,7 +330,7 @@ void SharedMemory::displaySharedData() {
     cout << "Is valid: " << (is_valid() ? "Yes" : "No") << endl;
 }
 
-void SharedMemory::displayFinalResult(vector<int64_t> numbers, int finalNumber){
+void SharedMemory::displayFinalResult(vector<int64_t> numbers, int64_t finalNumber){
     cout<<"end of program \n";
     cout<<"the result is :"<<finalNumber<<endl;
     cout<<"The difference between your number ("<<Result->finalNumber<<") and the result ("<<finalNumber<<") is :" << finalNumber - Result->finalNumber <<"\n";

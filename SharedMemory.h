@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <cstdint>
 
 using namespace std;
 
@@ -26,7 +27,7 @@ private:
 
 public:
     SharedMemory(const string memoryName, FileOpenResult* res, int proc = 1, int size=0);
-    SharedMemory(const string memoryName, int proc=1);
+    SharedMemory(const string memoryName, int proc=1, int size=0);
     ~SharedMemory();
     
     template<typename T>
@@ -48,14 +49,15 @@ public:
     int readMapFromRAM(int pid);
     void writeResultToRAM(int index);
     void readResultFromRAM();
-    void displayFinalResult(vector<int64_t> numbers, int finalNumber);
+    void readAllResultFromRAM();
+    void displayFinalResult(vector<int64_t> numbers, int64_t finalNumber);
     size_t getMemorySize(int type);
     void displaySharedData();
     void setResult(FileOpenResult *result, int index);
 };
 
-bool readAndProcessFile(FileOpenResult& result);
-void displayResults(FileOpenResult& result);
+bool readAndProcessFile(FileOpenResult* result);
+void displayResults(FileOpenResult* result);
 int GetProcessorCount();
 
 #endif // SHARED_MEMORY_H

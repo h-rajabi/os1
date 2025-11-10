@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <cstdint>
 
 using namespace std;
 
@@ -17,65 +18,65 @@ using namespace std;
 //     int totalLine;
 // };
 
-bool readAndProcessFile(FileOpenResult* result) {
-    ifstream file(result->fileName);
+// bool readAndProcessFile(FileOpenResult* result) {
+//     ifstream file(result->fileName);
     
-    if (!file.is_open()) {
-        cout << "Error: Cannot open file " << result->fileName << endl;
-        return false;
-    }
+//     if (!file.is_open()) {
+//         cout << "Error: Cannot open file " << result->fileName << endl;
+//         return false;
+//     }
     
-    string line;
-    int totalLines = 0;
-    bool firstLine = true;
+//     string line;
+//     int totalLines = 0;
+//     bool firstLine = true;
     
-    while (getline(file, line)) {
-        totalLines++;
+//     while (getline(file, line)) {
+//         totalLines++;
         
-        size_t start = line.find_first_not_of(" \t");
-        size_t end = line.find_last_not_of(" \t");
+//         size_t start = line.find_first_not_of(" \t");
+//         size_t end = line.find_last_not_of(" \t");
         
-        if (start == string::npos || end == string::npos) {
-            continue;
-        }
+//         if (start == string::npos || end == string::npos) {
+//             continue;
+//         }
         
-        line = line.substr(start, end - start + 1);
+//         line = line.substr(start, end - start + 1);
         
-        stringstream ss(line);
-        int64_t number;
+//         stringstream ss(line);
+//         int64_t number;
         
-        if (ss >> number) {
-            if (firstLine) {
-                result->finalNumber = number;
-                firstLine = false;
-            } else {
-                result->numbers.push_back(number);
-            }
-        } else {
-            cout << "Warning: Line " << totalLines << " is not a valid number: " << line << endl;
-        }
-    }
-    result->totalLine = totalLines;
-    file.close();
-    return true;
-}
+//         if (ss >> number) {
+//             if (firstLine) {
+//                 result->finalNumber = number;
+//                 firstLine = false;
+//             } else {
+//                 result->numbers.push_back(number);
+//             }
+//         } else {
+//             cout << "Warning: Line " << totalLines << " is not a valid number: " << line << endl;
+//         }
+//     }
+//     result->totalLine = totalLines;
+//     file.close();
+//     return true;
+// }
 
-void displayResults(FileOpenResult* result) {
-    cout << "=== File Processing Results ===" << endl;
-    cout << "File name: " << result->fileName << endl;
-    cout << "Final number (first line): " << result->finalNumber << endl;
-    cout << "Total lines in file: " << result->totalLine << endl;
-    cout << "Random numbers count: " << result->numbers.size() << endl;
-    cout << "Random numbers: ";
+// void displayResults(FileOpenResult* result) {
+//     cout << "=== File Processing Results ===" << endl;
+//     cout << "File name: " << result->fileName << endl;
+//     cout << "Final number (first line): " << result->finalNumber << endl;
+//     cout << "Total lines in file: " << result->totalLine << endl;
+//     cout << "Random numbers count: " << result->numbers.size() << endl;
+//     cout << "Random numbers: ";
     
-    for (size_t i = 0; i < result->numbers.size(); ++i) {
-        cout << result->numbers[i];
-        if (i < result->numbers.size() - 1) {
-            cout << ", ";
-        }
-    }
-    cout << endl;
-}
+//     for (size_t i = 0; i < result->numbers.size(); ++i) {
+//         cout << result->numbers[i];
+//         if (i < result->numbers.size() - 1) {
+//             cout << ", ";
+//         }
+//     }
+//     cout << endl;
+// }
 
 int CoresNumber(){
     SYSTEM_INFO sys;
@@ -87,14 +88,13 @@ int CoresNumber(){
 
 int main() {
     
-    string filename = "tes1.txt";
+    string filename = "random_numbers.txt";
     int64_t finalNumber;
     int64_t timee;
     vector<int64_t> numbers;
-    FileOpenResult* result;
+    FileOpenResult* result = new FileOpenResult;
 
     result->fileName=filename;
-
     if (readAndProcessFile(result)) {
         displayResults(result);
     }else return 0;
@@ -105,6 +105,7 @@ int main() {
 	cin.ignore();
     
     int Cores = CoresNumber();
+    // int Cores = 1;
 
     SharedMemory* fileMemory = new SharedMemory("FileMemory",result,Cores,0);
     fileMemory->writeFileToRAM(timee);
@@ -116,10 +117,8 @@ int main() {
 
     STARTUPINFO* childs = new STARTUPINFO[Cores];
     PROCESS_INFORMATION* prosess= new PROCESS_INFORMATION[Cores];
-    int* eshgh = new int[Cores];
 
     for (int i = 0; i < Cores; i++) {
-		//cout << pBuf4[3] <<"    as i" << endl;
         ZeroMemory(&childs[i], sizeof(childs[i]));
         childs[i].cb = sizeof(childs[i]);
         ZeroMemory(&prosess[i], sizeof(prosess[i]));
@@ -129,6 +128,7 @@ int main() {
             cout << "Create Process failed" << endl;
             return 0;
         }
+        cout << "Create Process sucess with PID:"<< prosess[i].dwProcessId << endl;
         mapv.push_back(prosess[i].dwProcessId);
 	}
     MapMemory->writeMapToRAM(mapv);
@@ -136,6 +136,8 @@ int main() {
     for (int i = 0; i < Cores ; i++)
 		WaitForSingleObject(prosess[i].hProcess, INFINITE);
 
+
+    // ResultMemory->readAllResultFromRAM();
     ResultMemory->readResultFromRAM();
     return 0;
 }

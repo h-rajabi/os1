@@ -59,12 +59,12 @@ void displayResults(FileOpenResult* result) {
     cout << "Random numbers count: " << result->numbers.size() << endl;
     cout << "Random numbers: ";
     
-    for (size_t i = 0; i < result->numbers.size(); ++i) {
-        cout << result->numbers[i];
-        if (i < result->numbers.size() - 1) {
-            cout << ", ";
-        }
-    }
+    // for (size_t i = 0; i < result->numbers.size(); ++i) {
+    //     cout << result->numbers[i];
+    //     if (i < result->numbers.size() - 1) {
+    //         cout << ", ";
+    //     }
+    // }
     cout << endl;
 }
 
@@ -180,7 +180,6 @@ void SharedMemory::writeFileToRAM(int64_t time) {
     Buf[1] = Result->totalLine;
     Buf[2] = Result->finalNumber;
     
-    cout<<"test3\n";
     for (size_t i = 0; i < Result->numbers.size(); i++) {
         Buf[i+3] = Result->numbers[i];
         cout<<"number: "<<Result->numbers[i]<<endl;

@@ -9,74 +9,6 @@
 
 using namespace std;
 
-// class SharedMemory;
-
-// struct FileOpenResult {
-//     string fileName;
-//     int64_t finalNumber;
-//     vector<int64_t> numbers;
-//     int totalLine;
-// };
-
-// bool readAndProcessFile(FileOpenResult* result) {
-//     ifstream file(result->fileName);
-    
-//     if (!file.is_open()) {
-//         cout << "Error: Cannot open file " << result->fileName << endl;
-//         return false;
-//     }
-    
-//     string line;
-//     int totalLines = 0;
-//     bool firstLine = true;
-    
-//     while (getline(file, line)) {
-//         totalLines++;
-        
-//         size_t start = line.find_first_not_of(" \t");
-//         size_t end = line.find_last_not_of(" \t");
-        
-//         if (start == string::npos || end == string::npos) {
-//             continue;
-//         }
-        
-//         line = line.substr(start, end - start + 1);
-        
-//         stringstream ss(line);
-//         int64_t number;
-        
-//         if (ss >> number) {
-//             if (firstLine) {
-//                 result->finalNumber = number;
-//                 firstLine = false;
-//             } else {
-//                 result->numbers.push_back(number);
-//             }
-//         } else {
-//             cout << "Warning: Line " << totalLines << " is not a valid number: " << line << endl;
-//         }
-//     }
-//     result->totalLine = totalLines;
-//     file.close();
-//     return true;
-// }
-
-// void displayResults(FileOpenResult* result) {
-//     cout << "=== File Processing Results ===" << endl;
-//     cout << "File name: " << result->fileName << endl;
-//     cout << "Final number (first line): " << result->finalNumber << endl;
-//     cout << "Total lines in file: " << result->totalLine << endl;
-//     cout << "Random numbers count: " << result->numbers.size() << endl;
-//     cout << "Random numbers: ";
-    
-//     for (size_t i = 0; i < result->numbers.size(); ++i) {
-//         cout << result->numbers[i];
-//         if (i < result->numbers.size() - 1) {
-//             cout << ", ";
-//         }
-//     }
-//     cout << endl;
-// }
 
 int CoresNumber(){
     SYSTEM_INFO sys;
@@ -95,9 +27,10 @@ int main() {
     FileOpenResult* result = new FileOpenResult;
 
     result->fileName=filename;
-    if (readAndProcessFile(result)) {
-        displayResults(result);
-    }else return 0;
+    if (!readAndProcessFile(result)) {
+        // displayResults(result);
+        return 0;
+    }
 
 
     cout << "input time for searching for best result:";

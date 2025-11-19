@@ -282,6 +282,7 @@ void SharedMemory::readResultFromRAM(){
     int j=0;
     for (size_t i = Result->totalLine ; i < Process*Result->totalLine ; i += Result->totalLine)
     {
+        cout<<"index: "<<i<< " final number result is :"<<Buf[i]<<endl;
         // cout<<"index :"<<i<<endl;
         j++;
         if (Buf[i] < min)

@@ -19,6 +19,11 @@ using namespace std;
 //     int totalLine;
 // };
 
+random_device rd;
+mt19937 gen(rd());
+bernoulli_distribution dis(0.5);
+
+
 int CoresNumber(){
     SYSTEM_INFO sys;
 	GetSystemInfo(&sys);
@@ -28,10 +33,6 @@ int CoresNumber(){
 }
 
 bool ran(){
-    random_device rd;
-    mt19937 gen(rd());
-    bernoulli_distribution dis(0.5);
-    
     bool random_bool = dis(gen);
     return random_bool;
 }
@@ -109,6 +110,10 @@ int main() {
     FileOpenResult* Cables = FileMemory->GetResult();
     FileOpenResult* Result = new FileOpenResult;
     
+    random_device rd;
+    mt19937 gen(rd());
+    bernoulli_distribution dis(0.5);
+
     cout<<"PID :"<<pId<<" start his job\n";
     findBestCables(Cables,Result,timee);
 

@@ -1,5 +1,6 @@
-#include <windows.h>
+#include "child.h"
 #include "SharedMemory.h"
+#include <windows.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -9,15 +10,10 @@
 #include <time.h>
 #include <chrono>
 #include <cstdint>
+#include <thread>
 
 using namespace std;
 
-// struct fileOpenResult {
-//     string fileName;
-//     int64_t finalNumber;
-//     vector<int64_t> numbers;
-//     int totalLine;
-// };
 
 int CoresNumber(){
     SYSTEM_INFO sys;
@@ -97,10 +93,10 @@ void findBestCables(FileOpenResult* Cables, FileOpenResult* Result, int64_t time
 
 }
 
-int main() {
+int runChild(int index) {
     
     int Cores =CoresNumber();
-    int pId = GetCurrentProcessId();
+    // thread::id pId = this_thread::get_id();
     int64_t timee;
     SharedMemory* FileMemory = new SharedMemory("FileMemory",Cores,0);
     
@@ -109,19 +105,19 @@ int main() {
     FileOpenResult* Cables = FileMemory->GetResult();
     FileOpenResult* Result = new FileOpenResult;
     
-    cout<<"PID :"<<pId<<" start his job\n";
+    cout<<"TID :"<<this_thread::get_id()<<" start his job\n";
     findBestCables(Cables,Result,timee);
 
-    SharedMemory* MapMemory = new SharedMemory("MapMemory",Cores,1);
+    // SharedMemory* MapMemory = new SharedMemory("MapMemory",Cores,1);
 
-    int index = MapMemory->readMapFromRAM(pId);
-    if (index == -1 )
-    {
-        cout<<"Error can`t find pID : "<<pId<<" in mapMemory\n";
-        return 0;
-    }
+    // int index = MapMemory->readMapFromRAM(pId);
+    // if (index == -1 )
+    // {
+    //     cout<<"Error can`t find pID : "<<pId<<" in mapMemory\n";
+    //     return 0;
+    // }
     SharedMemory* ResultMemory = new SharedMemory("ResultMemory",Cores,2);
-    cout<<"PID :"<<pId<<" finsh his job\n";
+    cout<<"TID :"<<this_thread::get_id()<<" finsh his job\n";
     ResultMemory->setResult(Result,index);
 
     return 0;

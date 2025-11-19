@@ -1,4 +1,5 @@
 #include "SharedMemory.h"
+#include "child.h"
 #include <windows.h>
 #include <iostream>
 #include <fstream>
@@ -6,17 +7,10 @@
 #include <string>
 #include <sstream>
 #include <cstdint>
+#include <thread>
 
 using namespace std;
 
-
-int CoresNumber(){
-    SYSTEM_INFO sys;
-	GetSystemInfo(&sys);
-	int Cores = sys.dwNumberOfProcessors;
-	Cores = Cores - 1;
-    return Cores;
-}
 
 int main() {
     
@@ -43,32 +37,30 @@ int main() {
     SharedMemory* fileMemory = new SharedMemory("FileMemory",result,Cores,0);
     fileMemory->writeFileToRAM(timee);
 
-    SharedMemory* MapMemory = new SharedMemory("MapMemory",result,Cores,1);
-    vector<int> mapv;
+    // SharedMemory* MapMemory = new SharedMemory("MapMemory",result,Cores,1);
+    // vector<thread::id> mapv;
 
     SharedMemory* ResultMemory = new SharedMemory("ResultMemory",result,Cores,2);
 
-    STARTUPINFO* childs = new STARTUPINFO[Cores];
-    PROCESS_INFORMATION* prosess= new PROCESS_INFORMATION[Cores];
-
+    vector<thread> threads;
+    
     for (int i = 0; i < Cores; i++) {
-        ZeroMemory(&childs[i], sizeof(childs[i]));
-        childs[i].cb = sizeof(childs[i]);
-        ZeroMemory(&prosess[i], sizeof(prosess[i]));
-        bool b = CreateProcess(TEXT("child.exe"), NULL, NULL, NULL, FALSE, 0, NULL, NULL, &childs[i], &prosess[i]);
-        if (!b)
+        thread t(runChild,i);
+        if (t.joinable())
         {
-            cout << "Create Process failed" << endl;
+            cout << "Create Thread sucess with TID:"<< t.get_id() << endl;
+            threads.push_back(move(t));
+            // mapv.push_back(t.get_id());
+        }else{
+            cout << "Create Thread failed!\n" << endl;
             return 0;
         }
-        cout << "Create Process sucess with PID:"<< prosess[i].dwProcessId << endl;
-        mapv.push_back(prosess[i].dwProcessId);
 	}
-    MapMemory->writeMapToRAM(mapv);
+    // MapMemory->writeMapToRAM(mapv);
 
-    for (int i = 0; i < Cores ; i++)
-		WaitForSingleObject(prosess[i].hProcess, INFINITE);
-
+    for (auto& t : threads) {
+        t.join();
+    }
 
     // ResultMemory->readAllResultFromRAM();
     ResultMemory->readResultFromRAM();

@@ -7,7 +7,7 @@
 #include <string>
 #include <sstream>
 #include <cstdint>
-#include <thread>
+// #include <thread>
 
 using namespace std;
 
@@ -35,10 +35,17 @@ void displayFinalResult(vector<int64_t> numbers, int64_t finalNumber);
 
 //define shared function
 int CoresNumber();
+// void ErrorHandler(LPCTSTR lpszFunction);
 
 //define child function
-int runChild(int index);
-void findBestCables(ResultCables* Result);
+DWORD WINAPI MyThreadFunction( LPVOID lpParam );
+typedef struct MyData {
+    int index;
+    int64_t time;
+} MYDATA, *PMYDATA;
+
+void runChild(int index, int64_t timee);
+void findBestCables(ResultCables* Result, int64_t timee);
 void writeResult(int index, ResultCables* Result);
 
 bool ran(){    
@@ -47,10 +54,9 @@ bool ran(){
 }
 
 
-FileOpenResult* start = new FileOpenResult;
+FileOpenResult* input = new FileOpenResult;
 
 ResultCables* result = new ResultCables;
-int64_t timee;
 
 int main() {
     
@@ -64,7 +70,7 @@ int main() {
         return 0;
     }
 
-    
+    int64_t timee;
     cout << "input time for searching for best result:";
 	cin >> timee;
 	cin.ignore();
@@ -73,35 +79,63 @@ int main() {
     // int Cores = 1;
     result->numbers.resize(start->totalLine * Cores);
 
-    vector<thread> threads;
+    PMYDATA pDataArray[Cores];
+    DWORD   dwThreadIdArray[Cores];
+    HANDLE  hThreadArray[Cores]; 
+
+
+    // vector<thread> threads;
     
     for (int i = 0; i < Cores; i++) {
-        thread t(runChild,i);
-        if (t.joinable())
+        // Allocate memory for thread data.
+        pDataArray[i] = (PMYDATA) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,sizeof(MYDATA));
+        
+        if( pDataArray[i] == NULL )
         {
-            cout << "Create Thread sucess with TID:"<< t.get_id() << endl;
-            threads.push_back(move(t));
-            // mapv.push_back(t.get_id());
-        }else{
-            cout << "Create Thread failed!\n" << endl;
-            return 0;
+            ExitProcess(2);
+        }
+
+        pDataArray[i]->index= i;
+        pDataArray[i]->time= timee;
+
+        hThreadArray[i] = CreateThread( 
+            NULL,                   // default security attributes
+            0,                      // use default stack size  
+            MyThreadFunction,       // thread function name
+            pDataArray[i],          // argument to thread function 
+            0,                      // use default creation flags 
+            &dwThreadIdArray[i]);   // returns the thread identifier
+        
+        if (hThreadArray[i] == NULL) 
+        {
+        //    ErrorHandler(TEXT("CreateThread"));
+           ExitProcess(3);
+        }
+
+        WaitForMultipleObjects(Cores, hThreadArray, TRUE, INFINITE);
+
+        for(int i=0; i<Cores; i++)
+        {
+            CloseHandle(hThreadArray[i]);
+            if(pDataArray[i] != NULL)
+            {
+                HeapFree(GetProcessHeap(), 0, pDataArray[i]);
+                pDataArray[i] = NULL;    // Ensure address is not reused.
+            }
         }
 	}
 
-    for (auto& t : threads) {
-        t.join();
-    }
+    readResult();
 
-    ResultMemory->readResultFromRAM();
     return 0;
 }
 
 //parent
 bool readAndProcessFile() {
-    ifstream file(start->fileName);
+    ifstream file(input->fileName);
     
     if (!file.is_open()) {
-        cout << "Error: Cannot open file " << start->fileName << endl;
+        cout << "Error: Cannot open file " << input->fileName << endl;
         return false;
     }
     
@@ -126,16 +160,16 @@ bool readAndProcessFile() {
         
         if (ss >> number) {
             if (firstLine) {
-                start->finalNumber = number;
+                input->finalNumber = number;
                 firstLine = false;
             } else {
-                start->numbers.push_back(number);
+                input.numbers.push_back(number);
             }
         } else {
             cout << "Warning: Line " << totalLines << " is not a valid number: " << line << endl;
         }
     }
-    start->totalLine = totalLines;
+    input->totalLine = totalLines;
     file.close();
     return true;
 }
@@ -192,7 +226,7 @@ void readResult(){
 void displayFinalResult(vector<int64_t> numbers, int64_t finalNumber){
     cout<<"end of program \n";
     cout<<"the result is :"<<finalNumber<<endl;
-    cout<<"The difference between your number ("<<Result->finalNumber<<") and the result ("<<finalNumber<<") is :" << finalNumber - Result->finalNumber <<"\n";
+    cout<<"The difference between your number ("<<input->finalNumber<<") and the result ("<<finalNumber<<") is :" << finalNumber - input->finalNumber <<"\n";
     cout<<"program chose this cables :\n";
     
     for (size_t i = 0; i < numbers.size(); i++)
@@ -211,23 +245,66 @@ int CoresNumber(){
     return Cores;
 }
 
+// void ErrorHandler(LPCTSTR lpszFunction) 
+// { 
+//     // Retrieve the system error message for the last-error code.
+
+//     LPVOID lpMsgBuf;
+//     LPVOID lpDisplayBuf;
+//     DWORD dw = GetLastError(); 
+
+//     FormatMessage(
+//         FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+//         FORMAT_MESSAGE_FROM_SYSTEM |
+//         FORMAT_MESSAGE_IGNORE_INSERTS,
+//         NULL,
+//         dw,
+//         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+//         (LPTSTR) &lpMsgBuf,
+//         0, NULL );
+
+//     // Display the error message.
+
+//     lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT, 
+//         (lstrlen((LPCTSTR) lpMsgBuf) + lstrlen((LPCTSTR) lpszFunction) + 40) * sizeof(TCHAR)); 
+//     StringCchPrintf((LPTSTR)lpDisplayBuf, 
+//         LocalSize(lpDisplayBuf) / sizeof(TCHAR),
+//         TEXT("%s failed with error %d: %s"), 
+//         lpszFunction, dw, lpMsgBuf); 
+//     MessageBox(NULL, (LPCTSTR) lpDisplayBuf, TEXT("Error"), MB_OK); 
+
+//     // Free error-handling buffer allocations.
+
+//     LocalFree(lpMsgBuf);
+//     LocalFree(lpDisplayBuf);
+// }
+
 // child code
-int runChild(int index) {
+
+DWORD WINAPI MyThreadFunction( LPVOID lpParam ){
+    PMYDATA pDataArray;
+    pDataArray = (PMYDATA)lpParam;
+    runChild(pDataArray->index, pDataArray->time);
+
+    return 0;
+}
+
+
+void runChild(int index, int64_t timee) {
     
     int Cores =CoresNumber();
 
     ResultCables* resultt = new ResultCables;
 
-    cout<<"TID :"<<this_thread::get_id()<<" start his job\n";
-    findBestCables(resultt);
+    cout<<"TID :"<< index <<" start his job\n";
+    findBestCables(resultt, timee);
 
-    cout<<"TID :"<<this_thread::get_id()<<" finsh his job\n";
+    cout<<"TID :"<< index <<" finsh his job\n";
     writeResult(index, resultt);
 
-    return 0;
 }
 
-void findBestCables(ResultCables* Result){
+void findBestCables(ResultCables* Result, int64_t timee){
     auto startTime = chrono::steady_clock::now();
     vector<int64_t> TempResult;
     int64_t min = -1;
@@ -245,15 +322,15 @@ void findBestCables(ResultCables* Result){
 		}
         sum=0;
         TempSum.clear();
-        for (size_t i = 0; i < Cables->totalLine -1; i++)
+        for (size_t i = 0; i < input->totalLine -1; i++)
         {   
             r=ran();
             if (r)
             {
-                TempSum.push_back(Cables->numbers[i]);
-                sum += Cables->numbers[i];
+                TempSum.push_back(input->numbers[i]);
+                sum += input->numbers[i];
             
-                if (sum > Cables->finalNumber )
+                if (sum > input->finalNumber )
                 {
                     if(min == -1){
                         min=sum;
@@ -270,7 +347,7 @@ void findBestCables(ResultCables* Result){
                     }
                     else break;
                 }
-                else if (sum == Cables->finalNumber ){
+                else if (sum == input->finalNumber ){
                     min=sum;
                     TempResult = TempSum;
                     // cout << "Found best solution, size:" << TempResult.size() << " sum:" << sum << endl;
@@ -282,7 +359,7 @@ void findBestCables(ResultCables* Result){
     }
 
 
-    Result->totalLine=Cables->totalLine;
+    Result->totalLine=input->totalLine;
     Result->finalNumber = min;
     Result->numbers=TempResult;
 

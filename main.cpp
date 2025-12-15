@@ -7,6 +7,8 @@
 #include <string>
 #include <sstream>
 #include <cstdint>
+#include <random>
+#include <chrono>
 // #include <thread>
 
 using namespace std;
@@ -22,7 +24,7 @@ struct ResultCables{
     int64_t finalNumber;
     vector<int64_t> numbers;
     int64_t totalLine;
-}
+};
 
 random_device rd;
 mt19937 gen(rd());
@@ -31,6 +33,7 @@ bernoulli_distribution dis(0.5);
 bool readAndProcessFile();
 void displayResults();
 void readResult();
+void displayAllResult();
 void displayFinalResult(vector<int64_t> numbers, int64_t finalNumber);
 
 //define shared function
@@ -61,11 +64,12 @@ ResultCables* result = new ResultCables;
 int main() {
     
     string filename = "random_numbers.txt";
+    // string filename = "test1.txt";
     int64_t finalNumber;
     vector<int64_t> numbers;
 
-    start->fileName=filename;
-    if (!readAndProcessFile(start)) {
+    input->fileName=filename;
+    if (!readAndProcessFile()) {
         // displayResults(result);
         return 0;
     }
@@ -76,9 +80,11 @@ int main() {
 	cin.ignore();
     
     int Cores = CoresNumber();
+    // cout<<"cores :"<<Cores<<"/n";
     // int Cores = 1;
-    result->numbers.resize(start->totalLine * Cores);
-
+    result->numbers.resize(input->totalLine * Cores);
+    result->totalLine = Cores * input->totalLine;
+    // cout<<"size result:"<<result->numbers.size()<<endl;
     PMYDATA pDataArray[Cores];
     DWORD   dwThreadIdArray[Cores];
     HANDLE  hThreadArray[Cores]; 
@@ -108,23 +114,24 @@ int main() {
         
         if (hThreadArray[i] == NULL) 
         {
+            cout<<"error in create thread/n";
         //    ErrorHandler(TEXT("CreateThread"));
            ExitProcess(3);
         }
-
-        WaitForMultipleObjects(Cores, hThreadArray, TRUE, INFINITE);
-
-        for(int i=0; i<Cores; i++)
-        {
-            CloseHandle(hThreadArray[i]);
-            if(pDataArray[i] != NULL)
-            {
-                HeapFree(GetProcessHeap(), 0, pDataArray[i]);
-                pDataArray[i] = NULL;    // Ensure address is not reused.
-            }
-        }
 	}
-
+    
+    WaitForMultipleObjects(Cores, hThreadArray, TRUE, INFINITE);
+    
+    for(int i=0; i<Cores; i++)
+    {
+        CloseHandle(hThreadArray[i]);
+        if(pDataArray[i] != NULL)
+        {
+            HeapFree(GetProcessHeap(), 0, pDataArray[i]);
+            pDataArray[i] = NULL;    // Ensure address is not reused.
+        }
+    }
+    // cout<<"ok in cilds\n";
     readResult();
 
     return 0;
@@ -163,7 +170,7 @@ bool readAndProcessFile() {
                 input->finalNumber = number;
                 firstLine = false;
             } else {
-                input.numbers.push_back(number);
+                input->numbers.push_back(number);
             }
         } else {
             cout << "Warning: Line " << totalLines << " is not a valid number: " << line << endl;
@@ -191,14 +198,14 @@ void displayResults() {
 }
 
 void readResult(){
+    // displayAllResult();
     int64_t min = result->numbers[0];
 
     int jm = 0;
     int j=0;
-    int size_array= CoresNumber() * start->totalLine;
+    int size_array= CoresNumber() * input->totalLine;
     for (size_t i = result->totalLine ; i < size_array ; i += result->totalLine)
     {
-        
         j++;
         if (result->numbers[i] < min)
         {
@@ -221,6 +228,20 @@ void readResult(){
         else break;
     }
     displayFinalResult(final, fnumber);
+}
+
+void displayAllResult(){
+    cout<<"total lines:"<<result->totalLine<<endl;
+    cout<<"first line:"<<result->numbers[0]<<endl;
+    for (int i = 0; i < result->totalLine; i++)
+    {
+        if (i%result->totalLine == 0)
+        {
+            cout<<"final number in index :"<<i%result->totalLine<<endl;
+        }else {
+            cout<<"i:"<<i<<result->numbers[i]<<endl;
+        }
+    }
 }
 
 void displayFinalResult(vector<int64_t> numbers, int64_t finalNumber){
@@ -284,6 +305,7 @@ int CoresNumber(){
 DWORD WINAPI MyThreadFunction( LPVOID lpParam ){
     PMYDATA pDataArray;
     pDataArray = (PMYDATA)lpParam;
+    // cout<<"index :"<<pDataArray->index <<"and time :"<<pDataArray->time<<"\n";
     runChild(pDataArray->index, pDataArray->time);
 
     return 0;
@@ -298,7 +320,6 @@ void runChild(int index, int64_t timee) {
 
     cout<<"TID :"<< index <<" start his job\n";
     findBestCables(resultt, timee);
-
     cout<<"TID :"<< index <<" finsh his job\n";
     writeResult(index, resultt);
 
@@ -367,8 +388,12 @@ void findBestCables(ResultCables* Result, int64_t timee){
 
 void writeResult(int index, ResultCables* Result){
 
-    int j = index * start->totalLine;
-
+    int j = index * input->totalLine;
+    if (index ==0)
+    {
+        cout<<"index 0 find :"<<Result->numbers[0]<<endl;
+    }
+    
     result->numbers[j] = Result->finalNumber;
     int h =0;
     for (size_t i = j + 1; i < (j + Result->totalLine) -1; i++)

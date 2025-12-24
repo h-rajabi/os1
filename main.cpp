@@ -21,6 +21,7 @@ struct FileOpenResult {
 };
 
 struct ResultCables{
+    int TID;
     int64_t finalNumber;
     vector<int64_t> numbers;
     int64_t totalLine;
@@ -31,10 +32,9 @@ mt19937 gen(rd());
 bernoulli_distribution dis(0.5);
 //define parent function
 bool readAndProcessFile();
-void displayResults();
-void readResult();
 void displayAllResult();
-void displayFinalResult(vector<int64_t> numbers, int64_t finalNumber);
+void displayFinalResult();
+void displayFindBetterResult();
 
 //define shared function
 int CoresNumber();
@@ -48,8 +48,7 @@ typedef struct MyData {
 } MYDATA, *PMYDATA;
 
 void runChild(int index, int64_t timee);
-void findBestCables(ResultCables* Result, int64_t timee);
-void writeResult(int index, ResultCables* Result);
+void findBestCables(int64_t timee, int index);
 
 bool ran(){    
     bool random_bool = dis(gen);
@@ -60,6 +59,11 @@ bool ran(){
 FileOpenResult* input = new FileOpenResult;
 
 ResultCables* result = new ResultCables;
+
+// HANDLE readSemaphore;
+HANDLE writeSemaphore;
+HANDLE parentSemaphore;
+HANDLE stopEvent;
 
 int main() {
     
@@ -80,17 +84,31 @@ int main() {
 	cin.ignore();
     
     int Cores = CoresNumber();
-    // cout<<"cores :"<<Cores<<"/n";
-    // int Cores = 1;
-    result->numbers.resize(input->totalLine * Cores);
-    result->totalLine = Cores * input->totalLine;
-    // cout<<"size result:"<<result->numbers.size()<<endl;
+    // int Cores = 2;    
     PMYDATA pDataArray[Cores];
     DWORD   dwThreadIdArray[Cores];
     HANDLE  hThreadArray[Cores]; 
 
+    result->finalNumber = input->finalNumber *2;
 
-    // vector<thread> threads;
+    // readSemaphore = CreateSemaphore(NULL,1,1,NULL);
+    // if (readSemaphore == NULL) {
+    //     printf("error in create semaphore: %d\n", GetLastError());
+    //     return 1;
+    // }
+    
+    writeSemaphore = CreateSemaphore(NULL,1,1,NULL);
+    if (writeSemaphore == NULL) {
+        printf("error in create semaphore: %d\n", GetLastError());
+        return 1;
+    }
+
+    parentSemaphore = CreateSemaphore(NULL,0,1,NULL);
+    if (parentSemaphore == NULL) {
+        printf("error in create semaphore: %d\n", GetLastError());
+        return 1;
+    }
+    stopEvent = CreateSemaphore(NULL,0,1,NULL);
     
     for (int i = 0; i < Cores; i++) {
         // Allocate memory for thread data.
@@ -120,6 +138,12 @@ int main() {
         }
 	}
     
+    while (true)
+    {
+        WaitForSingleObject(parentSemaphore, INFINITE);
+        displayFindBetterResult();
+    }
+    
     WaitForMultipleObjects(Cores, hThreadArray, TRUE, INFINITE);
     
     for(int i=0; i<Cores; i++)
@@ -132,7 +156,14 @@ int main() {
         }
     }
     // cout<<"ok in cilds\n";
-    readResult();
+    displayFinalResult();
+
+    // CloseHandle(readSemaphore);
+    CloseHandle(writeSemaphore);
+    CloseHandle(parentSemaphore);
+
+    delete input;
+    delete result;
 
     return 0;
 }
@@ -181,55 +212,6 @@ bool readAndProcessFile() {
     return true;
 }
 
-void displayResults() {
-    cout << "=== File Processing Results ===" << endl;
-    cout << "Final number (first line): " << result->finalNumber << endl;
-    cout << "Total lines in file: " << result->totalLine << endl;
-    cout << "Random numbers count: " << result->numbers.size() << endl;
-    cout << "Random numbers: ";
-    
-    // for (size_t i = 0; i < result->numbers.size(); ++i) {
-    //     cout << result->numbers[i];
-    //     if (i < result->numbers.size() - 1) {
-    //         cout << ", ";
-    //     }
-    // }
-    cout << endl;
-}
-
-void readResult(){
-    // displayAllResult();
-    int64_t min = result->numbers[0];
-
-    int jm = 0;
-    int j=0;
-    int size_array= CoresNumber() * input->totalLine;
-    for (size_t i = result->totalLine ; i < size_array ; i += result->totalLine)
-    {
-        j++;
-        if (result->numbers[i] < min)
-        {
-            min = result->numbers[i];
-            jm=j;
-        }
-    }
-    // cout<<"find best in index :"<<jm<<endl;
-
-    vector<int64_t> final;
-    int64_t fnumber;
-    int64_t index = jm * result->totalLine;
-    fnumber=result->numbers[index];
-    for (size_t i = index+1 ; i < ( index + result->totalLine); i++)
-    {
-        if (result->numbers[i] != 0)
-        {
-            final.push_back(result->numbers[i]);
-        }
-        else break;
-    }
-    displayFinalResult(final, fnumber);
-}
-
 void displayAllResult(){
     cout<<"total lines:"<<result->totalLine<<endl;
     cout<<"first line:"<<result->numbers[0]<<endl;
@@ -244,17 +226,21 @@ void displayAllResult(){
     }
 }
 
-void displayFinalResult(vector<int64_t> numbers, int64_t finalNumber){
+void displayFinalResult(){
     cout<<"end of program \n";
-    cout<<"the result is :"<<finalNumber<<endl;
-    cout<<"The difference between your number ("<<input->finalNumber<<") and the result ("<<finalNumber<<") is :" << finalNumber - input->finalNumber <<"\n";
+    cout<<"the result is :"<<result->finalNumber<<endl;
+    cout<<"The difference between your number ("<<input->finalNumber<<") and the result ("<<result->finalNumber<<") is :" << result->finalNumber - input->finalNumber <<"\n";
     cout<<"program chose this cables :\n";
     
-    for (size_t i = 0; i < numbers.size(); i++)
+    for (size_t i = 0; i < result->numbers.size(); i++)
     {
-        cout<<numbers[i]<<",";
+        cout<<result->numbers[i]<<",";
     }
-    cout<<"also we chosse "<<numbers.size()<<" cables.\n";
+    cout<<"also we chosse "<<result->numbers.size()<<" cables.\n";
+}
+
+void displayFindBetterResult(){
+    cout<<"thread :"<< result->TID <<" find better result: "<< result->finalNumber - input->finalNumber<<endl;
 }
 
 // shared
@@ -266,39 +252,6 @@ int CoresNumber(){
     return Cores;
 }
 
-// void ErrorHandler(LPCTSTR lpszFunction) 
-// { 
-//     // Retrieve the system error message for the last-error code.
-
-//     LPVOID lpMsgBuf;
-//     LPVOID lpDisplayBuf;
-//     DWORD dw = GetLastError(); 
-
-//     FormatMessage(
-//         FORMAT_MESSAGE_ALLOCATE_BUFFER | 
-//         FORMAT_MESSAGE_FROM_SYSTEM |
-//         FORMAT_MESSAGE_IGNORE_INSERTS,
-//         NULL,
-//         dw,
-//         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-//         (LPTSTR) &lpMsgBuf,
-//         0, NULL );
-
-//     // Display the error message.
-
-//     lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT, 
-//         (lstrlen((LPCTSTR) lpMsgBuf) + lstrlen((LPCTSTR) lpszFunction) + 40) * sizeof(TCHAR)); 
-//     StringCchPrintf((LPTSTR)lpDisplayBuf, 
-//         LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-//         TEXT("%s failed with error %d: %s"), 
-//         lpszFunction, dw, lpMsgBuf); 
-//     MessageBox(NULL, (LPCTSTR) lpDisplayBuf, TEXT("Error"), MB_OK); 
-
-//     // Free error-handling buffer allocations.
-
-//     LocalFree(lpMsgBuf);
-//     LocalFree(lpDisplayBuf);
-// }
 
 // child code
 
@@ -313,99 +266,58 @@ DWORD WINAPI MyThreadFunction( LPVOID lpParam ){
 
 
 void runChild(int index, int64_t timee) {
-    
-    int Cores =CoresNumber();
-
-    ResultCables* resultt = new ResultCables;
-
     cout<<"TID :"<< index <<" start his job\n";
-    findBestCables(resultt, timee);
+    findBestCables(timee, index);
     cout<<"TID :"<< index <<" finsh his job\n";
-    writeResult(index, resultt);
-
 }
 
-void findBestCables(ResultCables* Result, int64_t timee){
+void findBestCables(int64_t timee, int index){
     auto startTime = chrono::steady_clock::now();
     vector<int64_t> TempResult;
-    int64_t min = -1;
-    
-    vector<int64_t> TempSum;
     int64_t sum = 0 ;
     
     bool r;
     bool loop = true;
     while (loop) {
+        // cout<<"TID:"<< index <<"wait for search\n";
+        // WaitForSingleObject(readSemaphore, INFINITE);
+        // cout<<"TID:"<< index <<"start for search\n";
 		auto now = chrono::steady_clock::now();
 		auto spent = chrono::duration_cast<chrono::seconds>(now - startTime);
 		if (spent.count() >= timee) {
+            // ReleaseSemaphore(readSemaphore, 1, NULL);
 			break;
 		}
         sum=0;
-        TempSum.clear();
+        TempResult.clear();
         for (size_t i = 0; i < input->totalLine -1; i++)
         {   
             r=ran();
             if (r)
             {
-                TempSum.push_back(input->numbers[i]);
                 sum += input->numbers[i];
-            
-                if (sum > input->finalNumber )
-                {
-                    if(min == -1){
-                        min=sum;
-                        TempResult = TempSum;
-                        // cout << "Found first solution, size:" << TempResult.size() << " sum:" << sum << endl;
-                        break;
-                    }
-                    else if ( min > sum )
+                TempResult.push_back(input->numbers[i]);
+                if (sum >= input->finalNumber)
+                {   
+                    // WaitForSingleObject(readSemaphore, INFINITE);
+                    WaitForSingleObject(writeSemaphore, INFINITE);
+                    if (sum < result->finalNumber)
                     {
-                        min=sum;
-                        TempResult = TempSum;
-                        // cout << "Found better solution, size:" << TempResult.size() << " sum:" << sum << endl;
-                        break;
+                        // cout<<"TID:"<< index <<"wait for write\n";
+                        // cout<<"TID:"<< index <<"start for write\n";
+                        result->TID = index;
+                        result->numbers = TempResult;
+                        result->finalNumber = sum;
+                        // cout<<"TID:"<< index <<"release for search\n";
+                        ReleaseSemaphore(parentSemaphore, 1, NULL);
                     }
-                    else break;
-                }
-                else if (sum == input->finalNumber ){
-                    min=sum;
-                    TempResult = TempSum;
-                    // cout << "Found best solution, size:" << TempResult.size() << " sum:" << sum << endl;
-                    loop=false;
+                    ReleaseSemaphore(writeSemaphore, 1, NULL);
+                    // ReleaseSemaphore(readSemaphore, 1, NULL);
                     break;
                 }
             }
         }
+        // ReleaseSemaphore(readSemaphore, 1, NULL);
     }
-
-
-    Result->totalLine=input->totalLine;
-    Result->finalNumber = min;
-    Result->numbers=TempResult;
 
 }
-
-void writeResult(int index, ResultCables* Result){
-
-    int j = index * input->totalLine;
-    if (index ==0)
-    {
-        cout<<"index 0 find :"<<Result->numbers[0]<<endl;
-    }
-    
-    result->numbers[j] = Result->finalNumber;
-    int h =0;
-    for (size_t i = j + 1; i < (j + Result->totalLine) -1; i++)
-    {
-        if (h >= Result->numbers.size())
-        {
-            result->numbers[i] = 0;
-        }else
-        {
-            result->numbers[i]= Result->numbers[h];
-            h++;    
-        }
-    }
-}
-

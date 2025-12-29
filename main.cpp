@@ -312,7 +312,7 @@ void findBestCables(int64_t timee, int index){
                         ReleaseSemaphore(parentSemaphore, 1, NULL);
                     }
                     ReleaseSemaphore(writeSemaphore, 1, NULL);
-                    // ReleaseSemaphore(readSemaphore, 1, NULL);
+                    // ReleaseSemaphore(readSemaphore, 1, NU    LL);
                     break;
                 }
             }

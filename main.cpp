@@ -1,5 +1,4 @@
-// #include "SharedMemory.h"
-// #include "child.h"
+
 #include <windows.h>
 #include <iostream>
 #include <fstream>
@@ -9,9 +8,10 @@
 #include <cstdint>
 #include <random>
 #include <chrono>
-// #include <thread>
 
 using namespace std;
+
+int updatesCount=0;
 
 struct FileOpenResult {
     string fileName;
@@ -30,25 +30,25 @@ struct ResultCables{
 random_device rd;
 mt19937 gen(rd());
 bernoulli_distribution dis(0.5);
+
 //define parent function
 bool readAndProcessFile();
 void displayAllResult();
 void displayFinalResult();
-void displayFindBetterResult();
 
 //define shared function
 int CoresNumber();
-// void ErrorHandler(LPCTSTR lpszFunction);
+
 
 //define child function
 DWORD WINAPI MyThreadFunction( LPVOID lpParam );
 typedef struct MyData {
     int index;
     int64_t time;
-} MYDATA, *PMYDATA;
+} MYDATA, *PMYDATA;// define arg child thread function
 
 void runChild(int index, int64_t timee);
-void findBestCables(int64_t timee, int index);
+
 
 bool ran(){    
     bool random_bool = dis(gen);
@@ -60,13 +60,15 @@ FileOpenResult* input = new FileOpenResult;
 
 ResultCables* result = new ResultCables;
 
+HANDLE activeThreadSemaphore;
 HANDLE readSemaphore;
 HANDLE writeSemaphore;
 HANDLE parentSemaphore;
-// HANDLE stopEvent;
 
-int readCount;
+
+int activeThreads = 0;
 bool stop;
+
 int main() {
     
     string filename = "random_numbers.txt";
@@ -85,7 +87,6 @@ int main() {
 	cin >> timee;
 	cin.ignore();
     
-    readCount =0;
     int Cores = CoresNumber();
     // int Cores = 2;    
     PMYDATA pDataArray[Cores];
@@ -94,7 +95,7 @@ int main() {
 
     result->finalNumber = input->finalNumber *2;
 
-    readSemaphore = CreateSemaphore(NULL,1,1,NULL);
+    readSemaphore = CreateSemaphore(NULL,0,1,NULL);
     if (readSemaphore == NULL) {
         printf("error in create semaphore: %d\n", GetLastError());
         return 1;
@@ -111,7 +112,12 @@ int main() {
         printf("error in create semaphore: %d\n", GetLastError());
         return 1;
     }
-    // stopEvent = CreateSemaphore(NULL,0,1,NULL);
+    
+    activeThreadSemaphore = CreateSemaphore(NULL,1,1,NULL);
+    if (activeThreadSemaphore == NULL) {
+        printf("error in create semaphore: %d\n", GetLastError());
+        return 1;
+    }
     
     for (int i = 0; i < Cores; i++) {
         // Allocate memory for thread data.
@@ -144,9 +150,14 @@ int main() {
     while (!stop)
     {
         WaitForSingleObject(parentSemaphore, INFINITE);
-        displayFindBetterResult();
+        if (stop)
+        {
+            break;
+        }
+        cout<<"thread :"<< result->TID <<" find better result: "<< result->finalNumber - input->finalNumber<<endl;
+        ReleaseSemaphore(readSemaphore, 1, NULL);
     }
-    // cout<<"ok in cilds\n";
+    
     WaitForMultipleObjects(Cores, hThreadArray, TRUE, INFINITE);
     
     for(int i=0; i<Cores; i++)
@@ -158,12 +169,14 @@ int main() {
             pDataArray[i] = NULL;    // Ensure address is not reused.
         }
     }
-    // cout<<"ok in cilds\n";
-    displayFinalResult();
+    // displayFinalResult();
+
+    cout<<"\nupdates Count = "<<updatesCount<<endl;
 
     CloseHandle(readSemaphore);
     CloseHandle(writeSemaphore);
     CloseHandle(parentSemaphore);
+    CloseHandle(activeThreadSemaphore);
 
     delete input;
     delete result;
@@ -242,10 +255,6 @@ void displayFinalResult(){
     cout<<"also we chosse "<<result->numbers.size()<<" cables.\n";
 }
 
-void displayFindBetterResult(){
-    cout<<"thread :"<< result->TID <<" find better result: "<< result->finalNumber - input->finalNumber<<endl;
-}
-
 // shared
 int CoresNumber(){
     SYSTEM_INFO sys;
@@ -257,35 +266,26 @@ int CoresNumber(){
 
 
 // child code
-
 DWORD WINAPI MyThreadFunction( LPVOID lpParam ){
     PMYDATA pDataArray;
     pDataArray = (PMYDATA)lpParam;
-    // cout<<"index :"<<pDataArray->index <<"and time :"<<pDataArray->time<<"\n";
     runChild(pDataArray->index, pDataArray->time);
 
     return 0;
 }
 
-
 void runChild(int index, int64_t timee) {
-    cout<<"TID :"<< index <<" start his job\n";
-    findBestCables(timee, index);
-    cout<<"TID :"<< index <<" finsh his job\n";
-}
-
-void findBestCables(int64_t timee, int index){
     auto startTime = chrono::steady_clock::now();
     vector<int64_t> TempResult;
     int64_t sum = 0 ;
     
-    WaitForSingleObject(readSemaphore,INFINITE);
-    readCount++;
-    if (readCount == 1)
+    WaitForSingleObject(activeThreadSemaphore, INFINITE);
+    activeThreads++;
+    if (activeThreads == 1)
     {
         stop = false;
     }
-    ReleaseSemaphore(readSemaphore, 1, NULL);
+    ReleaseSemaphore(activeThreadSemaphore, 1, NULL);
 
     bool r;
     bool loop = true;
@@ -308,35 +308,33 @@ void findBestCables(int64_t timee, int index){
             {
                 sum += input->numbers[i];
                 TempResult.push_back(input->numbers[i]);
-                if (sum >= input->finalNumber)
+                if (sum > input->finalNumber && sum < result->finalNumber)
                 {   
-                    // WaitForSingleObject(readSemaphore, INFINITE);
                     WaitForSingleObject(writeSemaphore, INFINITE);
                     if (sum < result->finalNumber)
                     {
-                        // cout<<"TID:"<< index <<"wait for write\n";
-                        // cout<<"TID:"<< index <<"start for write\n";
                         result->TID = index;
                         result->numbers = TempResult;
                         result->finalNumber = sum;
-                        // cout<<"TID:"<< index <<"release for search\n";
+                        updatesCount++;
+
                         ReleaseSemaphore(parentSemaphore, 1, NULL);
+                        WaitForSingleObject(readSemaphore, INFINITE);
                     }
                     ReleaseSemaphore(writeSemaphore, 1, NULL);
-                    // ReleaseSemaphore(readSemaphore, 1, NU    LL);
                     break;
                 }
             }
         }
-        // ReleaseSemaphore(readSemaphore, 1, NULL);
+        
     }
 
-    WaitForSingleObject(readSemaphore,INFINITE);
-    readCount--;
-    if (readCount == 0)
+    WaitForSingleObject(activeThreadSemaphore,INFINITE);
+    activeThreads--;
+    if (activeThreads == 0)
     {
         stop = true;
         ReleaseSemaphore(parentSemaphore, 1, NULL);
     }
-    ReleaseSemaphore(readSemaphore, 1, NULL);
+    ReleaseSemaphore(activeThreadSemaphore, 1, NULL);
 }

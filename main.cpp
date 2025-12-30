@@ -60,11 +60,13 @@ FileOpenResult* input = new FileOpenResult;
 
 ResultCables* result = new ResultCables;
 
-// HANDLE readSemaphore;
+HANDLE readSemaphore;
 HANDLE writeSemaphore;
 HANDLE parentSemaphore;
-HANDLE stopEvent;
+// HANDLE stopEvent;
 
+int readCount;
+bool stop;
 int main() {
     
     string filename = "random_numbers.txt";
@@ -83,6 +85,7 @@ int main() {
 	cin >> timee;
 	cin.ignore();
     
+    readCount =0;
     int Cores = CoresNumber();
     // int Cores = 2;    
     PMYDATA pDataArray[Cores];
@@ -91,11 +94,11 @@ int main() {
 
     result->finalNumber = input->finalNumber *2;
 
-    // readSemaphore = CreateSemaphore(NULL,1,1,NULL);
-    // if (readSemaphore == NULL) {
-    //     printf("error in create semaphore: %d\n", GetLastError());
-    //     return 1;
-    // }
+    readSemaphore = CreateSemaphore(NULL,1,1,NULL);
+    if (readSemaphore == NULL) {
+        printf("error in create semaphore: %d\n", GetLastError());
+        return 1;
+    }
     
     writeSemaphore = CreateSemaphore(NULL,1,1,NULL);
     if (writeSemaphore == NULL) {
@@ -108,7 +111,7 @@ int main() {
         printf("error in create semaphore: %d\n", GetLastError());
         return 1;
     }
-    stopEvent = CreateSemaphore(NULL,0,1,NULL);
+    // stopEvent = CreateSemaphore(NULL,0,1,NULL);
     
     for (int i = 0; i < Cores; i++) {
         // Allocate memory for thread data.
@@ -138,12 +141,12 @@ int main() {
         }
 	}
     
-    while (true)
+    while (!stop)
     {
         WaitForSingleObject(parentSemaphore, INFINITE);
         displayFindBetterResult();
     }
-    
+    // cout<<"ok in cilds\n";
     WaitForMultipleObjects(Cores, hThreadArray, TRUE, INFINITE);
     
     for(int i=0; i<Cores; i++)
@@ -158,7 +161,7 @@ int main() {
     // cout<<"ok in cilds\n";
     displayFinalResult();
 
-    // CloseHandle(readSemaphore);
+    CloseHandle(readSemaphore);
     CloseHandle(writeSemaphore);
     CloseHandle(parentSemaphore);
 
@@ -276,6 +279,14 @@ void findBestCables(int64_t timee, int index){
     vector<int64_t> TempResult;
     int64_t sum = 0 ;
     
+    WaitForSingleObject(readSemaphore,INFINITE);
+    readCount++;
+    if (readCount == 1)
+    {
+        stop = false;
+    }
+    ReleaseSemaphore(readSemaphore, 1, NULL);
+
     bool r;
     bool loop = true;
     while (loop) {
@@ -320,4 +331,12 @@ void findBestCables(int64_t timee, int index){
         // ReleaseSemaphore(readSemaphore, 1, NULL);
     }
 
+    WaitForSingleObject(readSemaphore,INFINITE);
+    readCount--;
+    if (readCount == 0)
+    {
+        stop = true;
+        ReleaseSemaphore(parentSemaphore, 1, NULL);
+    }
+    ReleaseSemaphore(readSemaphore, 1, NULL);
 }

@@ -335,7 +335,9 @@ void findBestCables(ResultCables* Result, int64_t timee){
     
     bool r;
     bool loop = true;
+    int64_t t =0;
     while (loop) {
+        t++;
 		auto now = chrono::steady_clock::now();
 		auto spent = chrono::duration_cast<chrono::seconds>(now - startTime);
 		if (spent.count() >= timee) {
@@ -383,7 +385,7 @@ void findBestCables(ResultCables* Result, int64_t timee){
     Result->totalLine=input->totalLine;
     Result->finalNumber = min;
     Result->numbers=TempResult;
-
+    cout<<"thread t :"<<t<<endl;
 }
 
 void writeResult(int index, ResultCables* Result){
